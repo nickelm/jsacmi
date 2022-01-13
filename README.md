@@ -1,2 +1,2 @@
 # jsacmi
- Library for loading, saving, and managin Tacview ACMI files.
+ Library for loading, saving, and managing Tacview ACMI files.
