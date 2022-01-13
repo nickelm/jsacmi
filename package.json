@@ -1,12 +1,23 @@
 {
 	"name": "jsacmi",
-	"version": "0.1.3",
+	"version": "0.1.6",
 	"description": "Library for loading, saving, and managing Tacview ACMI files.",
-	"main": "src/jsacmi.js",
+	"main": "src/index.js",
+	"browser": "src/jsacmi.js",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/nickelm/jsacmi.git"
 	},
 	"author": "Niklas Elmqvist",
-	"keywords": ["tacview", "acmi", "dcs world"]
+	"email": "niklas.elmqvist@gmail.com",
+	"keywords": [
+		"tacview",
+		"acmi",
+		"dcs world"
+	],
+	"files": [
+		"src/index.js",
+		"src/jsacmi.js",
+		"src/trackio.js"
+	]
 }
