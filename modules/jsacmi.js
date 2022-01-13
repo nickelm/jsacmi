@@ -63,7 +63,7 @@ class TrackObject {
     }
 
     findFirstValue(comp) {
-        return this.findNearestValue(e, 0, 1);
+        return this.findNearestValue(comp, 0, 1);
     }
 
     findLastValue(comp) {
@@ -123,8 +123,17 @@ class TrackObject {
         return this.findValueAtTime((e) => name in e, (e) => e[name], time);
     }
    
-    getStringAtTime() {
+    getStringAtTime(name, time) {
 
+        // First look up the time index
+        var startIndex = this.findTimeIndex(time);
+
+        // Sanity check: before and after the time limits?
+        if (startIndex <= 0) return this.findFirstValue((e) => name in e)[name];
+        if (startIndex >= this.data.vals.length - 1) return this.findLastValue((x) => name in x)[name];
+
+        // Let's find the closest value (earlier in time)
+        return this.findNearestValue((x) => name in x, startIndex, -1)[name];
     }
 
     getCoordAtTime(coord, time) {
@@ -141,10 +150,6 @@ class TrackObject {
 
     static addEntry(data, entry) {
         data.vals.push(entry);
-    }
-
-    static getLatestEntry(data) {
-        return data.vals[data.vals.length - 1];
     }
 }
 
@@ -195,7 +200,7 @@ class TrackObject {
             }
 
             // Is there an entry already for this time in this object?
-            var timeEntry = TrackObject.getLatestEntry(this.data[objId]);
+            var timeEntry = this.data[objId].vals[this.data[objId].vals.length - 1];
             if (timeEntry === undefined || timeEntry['_time'] !== this.currOffset) {
                 timeEntry = TrackObject.createEntry(this.currOffset);
                 TrackObject.addEntry(this.data[objId], timeEntry);
@@ -280,5 +285,18 @@ class TrackObject {
 }
 
 // EXPORTS
-exports.TrackDatabase = TrackDatabase;
-exports.TrackObject = TrackObject;
+module.exports = {
+    TrackDatabase: TrackDatabase,
+    TrackObject: TrackObject,
+    C_LON: 0,   // Longitude coordinate index
+    C_LAT: 1,   // Latitude coordinate index
+    C_ALT: 2,   // Altitude (meters) coordinate index   
+    C_ROLL: 3,  // Roll (positive to the right) coordinate index
+    C_PITCH: 4, // Pitch (positive when taking off) coordinate index
+    C_YAW: 5,   // Yaw (clockwise relative to true north) coordinate index
+    C5_U: 3,    // Native X (meters) coordinate index (5-tuple)
+    C5_V: 4,    // Native Y (meters) coordinate index (5-tuple)
+    C9_U: 6,    // Native X (meters) coordinate index (9-tuple)
+    C9_U: 7,    // Native Y (meters) coordinate index (9-tuple)
+    C_HDG: 8    // Heading (clockwise relative to true north) coordinate index (9-tuple)
+};
