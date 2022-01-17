@@ -12,12 +12,13 @@
         constructor(id, data) {
             this.id = id;
             this.data = data;
+            this.extractSingletons();
         }
 
         findNearestValueIndex(comp, index, delta) {
 
             // Initialize at the current position
-            var currEntry = this.data.vals[index];
+            let currEntry = this.data.vals[index];
 
             // Keep stepping back until we find it
             while (comp(currEntry) == false) {
@@ -47,9 +48,9 @@
         binTimeSearch(time, ndx1, ndx2) {
         
             // Retrieve the middle two values
-            var mid = Math.floor((ndx1 + ndx2) / 2);
-            var t1 = this.data.vals[mid]['_time'];
-            var t2 = this.data.vals[mid + 1]['_time'];
+            let mid = Math.floor((ndx1 + ndx2) / 2);
+            let t1 = this.data.vals[mid]['#'];
+            let t2 = this.data.vals[mid + 1]['#'];
 
             // Base case: our value is in between
             if (time >= t1 && time <= t2) return mid;
@@ -62,45 +63,63 @@
         findTimeIndex(time) {
 
             // Sanity check
-            if (time <= this.data.vals[0]['_time']) return 0;
-            if (time >= this.data.vals[this.data.vals.length - 1]['_time']) return this.data.vals.length - 1;
+            if (time <= this.data.vals[0]['#']) return 0;
+            if (time >= this.data.vals[this.data.vals.length - 1]['#']) return this.data.vals.length - 1;
         
             // Binary search
             return this.binTimeSearch(time, 0, this.data.vals.length - 1);
         }
+        
+        getFirstTime() {
+            console.log('' + this.data.vals[0]['#']);
+            return this.data.vals[0]['#'];
+        }
+
+        getLastTime() {
+            return this.data.vals[this.data.vals.length - 1]['#'];
+        }
  
-        findValueAtTime(comp, retrieve, time) {
+        findNumberAtTime(comp, retrieve, time) {
        
             // First look up the time index
-            var startIndex = this.findTimeIndex(time);
+            let startIndex = this.findTimeIndex(time);
 
             // Sanity check: before and after the time limits?
             if (startIndex <= 0) return retrieve(this.findFirstValue(comp));
             if (startIndex >= this.data.vals.length - 1) return retrieve(this.findLastValue(comp));
 
             // Now we need to search for the value before and after this index
-            var prevIndex = this.findNearestValueIndex(comp, startIndex, -1);
-            var nextIndex = this.findNearestValueIndex(comp, startIndex + 1, 1);
+            let prevIndex = this.findNearestValueIndex(comp, startIndex, -1);
+            let nextIndex = this.findNearestValueIndex(comp, startIndex + 1, 1);
 
-            // FIXME: Handle edge cases (index = -1)
+            // Handle edge cases (index = -1; shouldn't happen)
+            if (prevIndex === -1 || nextIndex === -1) return 0.0;
 
             // Calculate the time difference and interpolate
-            var prevTime = this.data.vals[prevIndex]['_time']; 
-            var nextTime = this.data.vals[nextIndex]['_time'];
-            var timeDelta = nextTime - prevTime;
-            var prevValue = retrieve(this.data.vals[prevIndex]);
-            var nextValue = retrieve(this.data.vals[nextIndex]);
+            let prevTime = this.data.vals[prevIndex]['#']; 
+            let nextTime = this.data.vals[nextIndex]['#'];
+            let timeDelta = nextTime - prevTime;
+            let prevValue = retrieve(this.data.vals[prevIndex]);
+            let nextValue = retrieve(this.data.vals[nextIndex]);
             return lerp(prevValue, nextValue, (time - prevTime) / timeDelta);
         }
 
-        getValueAtTime(name, time) {
-            return this.findValueAtTime((e) => name in e, (e) => e[name], time);
+        getFirstValue(name) {
+            return this.findFirstValue((e) => name in e)[name];
+        }
+
+        getLastValue(name) {
+            return this.findLastValue((e) => name in e)[name];
+        }
+
+        getNumberAtTime(name, time) {
+            return this.findNumberAtTime((e) => name in e, (e) => e[name], time);
         }
    
-        getStringAtTime(name, time) {
+        getValueAtTime(name, time) {
 
             // First look up the time index
-            var startIndex = this.findTimeIndex(time);
+            let startIndex = this.findTimeIndex(time);
 
             // Sanity check: before and after the time limits?
             if (startIndex <= 0) return this.findFirstValue((e) => name in e)[name];
@@ -111,7 +130,7 @@
         }
 
         getCoordAtTime(coord, time) {
-            return this.findValueAtTime((e) => 'T' in e && e['T'].length > coord && e['T'][coord] != null, (e) => e['T'][coord], time);
+            return this.findNumberAtTime((e) => 'T' in e && e['T'].length > coord && e['T'][coord] != null, (e) => e['T'][coord], time);
         }
     
         static createObject(time) {
@@ -119,11 +138,38 @@
         }
 
         static createEntry(time) {
-            return { "_time": parseFloat(time) };
+            return { "#": parseFloat(time) };
         }
 
         static addEntry(data, entry) {
             data.vals.push(entry);
+        }
+
+        extractSingletons() {
+
+            // Sanity check
+            if (this.data == null) return;
+
+            // Step through all of the entries
+            let registry = {};
+            for (let i = 0; i < this.data.vals.length; i++) {
+                let entry = this.data.vals[i];
+                for (let elem in entry) {
+                    // FIXME: Could make this more efficient
+                    if (registry.hasOwnProperty(elem) == false) {
+                        registry[elem] = [];
+                    }
+                    registry[elem].push(i);
+                }
+            }
+
+            // Now extract those who only appear once
+            for (let val in registry) {
+                if (registry[val].length == 1) {
+                    if (this.hasOwnProperty(val)) this["_" + val] = this.data.vals[registry[val][0]][val];
+                    else this[val] = this.data.vals[registry[val][0]][val];
+                }
+            }
         }
     }
 
@@ -132,7 +178,7 @@
         constructor(data = null) {
             this.data = data != null ? data : {};
             if (0 in this.data) {
-                this.global = this.data[0];
+                this.global = new TrackObject(0, this.data[0]);
             }
             else {
                 this.global = TrackObject.createObject(0.0);
@@ -141,12 +187,12 @@
         }
 
         get objects() {
-            var objs = [];
+            let objs = [];
             for (const [id, data] of Object.entries(this.data)) {
                 objs.push(new TrackObject(id, data));
             }
+            return objs;
         }
-
     }
 
     // EXPORTS
