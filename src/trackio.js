@@ -1,6 +1,7 @@
 // trackio.js -- separate I/O library for node (not browsers).
 
 const fs = require('fs');
+const os = require("os");
 const readline = require('readline');
 
 const jsacmi = require('./jsacmi');
@@ -34,8 +35,8 @@ class TrackIO {
     static parseUpdate(context, str) {
 
         // Parse the fields
-        var fields = tokenizeUpdate(str);
-        var objId = parseInt(fields[0], 16);
+        let fields = tokenizeUpdate(str);
+        let objId = parseInt(fields[0], 16);
 
         // Initialize the object if needed
         if (objId in context.db.data == false) {
@@ -45,28 +46,21 @@ class TrackIO {
         // Remove the first element
         fields.shift();
 
+        // Create an entry
+        let timeEntry = jsacmi.TrackObject.createEntry(context.currOffset);
+        jsacmi.TrackObject.addEntry(context.db.data[objId], timeEntry);
+
         // Iterate through the fields
         for (const elem of fields) {
 
             // Parse the variable and value
-            var data = elem.match(/([^=]+)=(.*)/);
-            var name = data[1];
-            var value = data[2];
+            let data = elem.match(/([^=]+)=(.*)/);
+            let name = data[1];
+            let value = data[2];
 
-            // Is this a time reference?
-            if (name === "ReferenceTime" || name === "RecordingTime") {
-                value = new Date(value);
-            }
             // Is it a positional indicator?
-            else if (name === "T") {
+            if (name === "T") {
                 value = parseObjectCoords(value);
-            }
-
-            // Is there an entry already for this time in this object?
-            var timeEntry = context.db.data[objId].vals[context.db.data[objId].vals.length - 1];
-            if (timeEntry === undefined || timeEntry['_time'] !== context.currOffset) {
-                timeEntry = jsacmi.TrackObject.createEntry(context.currOffset);
-                jsacmi.TrackObject.addEntry(context.db.data[objId], timeEntry);
             }
 
             // Sanity check
@@ -96,7 +90,7 @@ class TrackIO {
         
         // Create the new context 
         var context = {
-            db:  new jsacmi.TrackDatabase(),
+            db: new jsacmi.TrackDatabase(),
             currOffset: 0.0
         }
 
@@ -107,7 +101,12 @@ class TrackIO {
         var lineBuffer = "";
 
         // Step through one line at a time
-        for await (const line of rl) {
+        for await (let line of rl) {
+
+            // Trim the line
+            line = line.trim();
+
+            console.log(trackFile + " - " + line);
 
             // Empty line?
             if (line.length == 0) continue;
@@ -116,14 +115,13 @@ class TrackIO {
             // FIXME: Check the file format
             if (line === "FileType=text/acmi/tacview" || line.startsWith("FileVersion")) continue;
 
-            // Detect escaped newlines and accumulate the line, then go around
+            // Make sure we add any previous lines
+            lineBuffer = lineBuffer.concat(line);
+
+            // Detect escaped newlines and go around
             if (line[line.length - 1] === '\\') {
-                lineBuffer = lineBuffer.concat(line.substr(0, line.length - 1));
                 continue;
             }
-
-            // No escaped newline, let's make sure we add any previous lines
-            lineBuffer = lineBuffer.concat(line);
 
             // Comment?
             if (lineBuffer.substr(0, 2) == "//") continue;
@@ -152,6 +150,98 @@ class TrackIO {
         }
 
         return context.db;
+    }
+
+    static async saveACMI(trackFile, db) {
+    
+        // Concatenate each of the object data into a master list (sorting is said to be faster than merging)
+        let allData = [];
+        for (let id in db.data) {
+
+            // Add these events
+            let obj = db.data[id];
+            if (obj.vals === null) continue;
+            allData = allData.concat(obj.vals.map(e => { e['_id'] = id; return e; }));
+            
+            // Need to add a delete event if the element is destroyed
+            if (obj.end !== null) {
+                let remove = jsacmi.TrackObject.createEntry(parseFloat(obj.end));
+                remove['_id'] = id;
+                remove['_rm'] = true;
+                allData.push(remove);
+            }
+        }
+
+        // Now sort the data
+        allData.sort((a, b) => a['#'] - b['#']);
+
+        // Open a new file
+        const fileStream = fs.createWriteStream(trackFile); 
+
+        // Write the required header
+        fileStream.write('FileType=text/acmi/tacview' + os.EOL + 'FileVersion=2.2' + os.EOL);
+
+        // Write line by line
+        let currOffset = 0.0; 
+        for (let i = 0; i < allData.length; i++) {
+
+            // Isolate the line
+            let curr = allData[i];
+
+            // Do we need to output a new time marker?
+            if (currOffset != curr['#']) {
+                currOffset = curr['#'];
+                fileStream.write('#' + currOffset + os.EOL);
+            }
+
+            // Isolate the object identifier
+            let id = parseInt(curr['_id']);
+
+            // Is this a remove command?
+            if (curr.hasOwnProperty('_rm')) {
+               fileStream.write('-' + id.toString(16) + os.EOL);
+               continue;
+            }
+            
+            // Now write the identifier first
+            fileStream.write(id.toString(16));
+
+            // Iterate through the fields
+            for (const name in curr) {
+
+                // Skip the fields we have already dealt with
+                if (name === '#' || name.startsWith('_')) continue;
+
+                // Write the starting comma
+                fileStream.write(',');
+
+                // Is this a coordinate command?
+                if (name === 'T') {
+                    let first = true;
+                    for (let coord of curr['T']) {
+                        let delim = '|';
+                        let val = coord === null || isNaN(coord) ? '' : coord.toString();
+                        if (first) {
+                            delim = 'T=';
+                            first = false;
+                        }
+                        fileStream.write(delim + val);
+                    }
+                }
+                // Nope, it's just a normal data value
+                else {
+                    fileStream.write(name + '=');
+                    var lines = curr[name].toString().split(/\\(?!,)/);
+                    for (let ndx = 0; ndx < lines.length; ndx++) {
+                        if (ndx > 0) fileStream.write('\\' + os.EOL);
+                        fileStream.write(lines[ndx]);
+                    }
+                }
+            }
+            
+            // End the line
+            fileStream.write(os.EOL);                
+        }
     }
 }
 
