@@ -106,8 +106,6 @@ class TrackIO {
             // Trim the line
             line = line.trim();
 
-            console.log(trackFile + " - " + line);
-
             // Empty line?
             if (line.length == 0) continue;
 

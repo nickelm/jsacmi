@@ -193,6 +193,49 @@
             }
             return objs;
         }
+
+        filterObject(obj, fields, inclusive = true) {
+            let removeList = [];
+            for (let t = 0; t < obj.vals.length; t++) {
+                let entry = obj.vals[t];
+                for (var name in entry) {
+                    if (name === '#') continue;
+                    if (fields.includes(name)) {
+                        if (!inclusive)  delete entry[name];
+                    }
+                    else {
+                        if (inclusive) delete entry[name];
+                    }
+                }
+
+                // Detect empty entries
+                if (Object.keys(entry).length <= 1) removeList.push(entry);
+            }
+
+            // Now remove all of the empty entries
+            obj.vals = obj.vals.filter(e => !removeList.includes(e));
+        }
+
+        filter(fields, inclusive = true) {
+
+            // Step through the list of objects
+            for (let [id, obj] of Object.entries(this.data)) {
+
+                // Never filter the global object
+                id = parseInt(id);
+                if (id === 0) continue;
+                
+                // Filter the object
+                this.filterObject(obj, fields, inclusive);
+
+                // Do we need to remove the object too?
+                if (obj.vals.length === 0) {
+                    delete this.data[id];
+                }
+            }
+        }
+
+        static minimalFields = ['T', 'Type', 'Color', 'Coalition', 'Name', 'Pilot', 'Group', 'Country'];
     }
 
     // EXPORTS

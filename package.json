@@ -1,6 +1,6 @@
 {
 	"name": "jsacmi",
-	"version": "0.1.8",
+	"version": "0.1.9",
 	"description": "Library for loading, saving, and managing Tacview ACMI files.",
 	"main": "src/index.js",
 	"browser": "src/jsacmi.js",
