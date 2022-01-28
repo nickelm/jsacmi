@@ -147,6 +147,9 @@ class TrackIO {
             lineBuffer = "";
         }
 
+        // Update parameters
+        context.db.findLastTime();
+
         return context.db;
     }
 

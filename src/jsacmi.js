@@ -104,6 +104,10 @@
             return lerp(prevValue, nextValue, (time - prevTime) / timeDelta);
         }
 
+        hasValue(name) {
+            return this.findFirstValue((e) => name in e) != null;
+        }
+
         getFirstValue(name) {
             return this.findFirstValue((e) => name in e)[name];
         }
@@ -130,7 +134,8 @@
         }
 
         getCoordAtTime(coord, time) {
-            return this.findNumberAtTime((e) => 'T' in e && e['T'].length > coord && e['T'][coord] != null, (e) => e['T'][coord], time);
+            return this.findNumberAtTime((e) => 'T' in e && (e['T'].length > 5 || coord < 3)&& e['T'].length > coord && e['T'][coord] != null,
+                (e) => e == null ? 0.0 : e['T'][coord], time);
         }
     
         static createObject(time) {
@@ -183,6 +188,22 @@
             else {
                 this.global = TrackObject.createObject(0.0);
                 this.data[0] = this.global;
+            }
+            this.findLastTime();
+        }
+
+        findLastTime() {
+            this.lastTime = 0.0;
+            if (this.data === null) return;
+            for (const id in this.data) {
+                let obj = this.data[id];
+                if (obj.end !== null) {
+                    this.lastTime = Math.max(obj.end, this.lastTime);
+                }
+                else {
+                    if (this.data[id].vals.length === 0) continue;
+                    this.lastTime = Math.max(obj.vals[obj.vals.length - 1]['#'], this.lastTime);
+                }
             }
         }
 
