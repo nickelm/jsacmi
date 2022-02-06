@@ -71,7 +71,6 @@
         }
         
         getFirstTime() {
-            console.log('' + this.data.vals[0]['#']);
             return this.data.vals[0]['#'];
         }
 
